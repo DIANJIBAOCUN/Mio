@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>像素账本 v8.5 · PIXEL LEDGER</title>
+<title>像素账本 v8.6 · PIXEL LEDGER</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%23eef4ff'/><rect x='3' y='5' width='10' height='7' fill='%23ffc107'/><rect x='3' y='3' width='10' height='2' fill='%2316161f'/></svg>">
 <meta name="theme-color" content="#eef1f9">
 <link rel="preconnect" href="https://miaoda.feishu.cn">
@@ -361,7 +361,7 @@ textarea.inp{min-height:80px;resize:vertical;line-height:1.5}
   <div class="login-card">
     <div class="login-logo">
       <div class="mark"><svg viewBox="0 0 12 12" width="34" height="34" shape-rendering="crispEdges"><rect x="2" y="3" width="8" height="1" fill="#16161f"/><rect x="1" y="4" width="10" height="6" fill="#ffc107"/><rect x="2" y="5" width="8" height="4" fill="#fff6d6"/><rect x="3" y="6" width="2" height="2" fill="#12b886"/><rect x="6" y="6" width="3" height="1" fill="#16161f"/></svg></div>
-      <div><div class="t1">像素账本</div><div class="t2">PIXEL LEDGER / v8.5</div></div>
+      <div><div class="t1">像素账本</div><div class="t2">PIXEL LEDGER / v8.6</div></div>
     </div>
     <div class="err-box" id="loginErr" hidden></div>
     <div class="field"><label>账本账号</label><input class="inp" id="lgUser" autocomplete="username" placeholder="请输入账号"></div>
@@ -497,7 +497,7 @@ textarea.inp{min-height:80px;resize:vertical;line-height:1.5}
   function moneyShort(n) { var v = Math.abs(Number(n) || 0); if (v >= 10000) return '¥' + (v / 10000).toFixed(1) + '万'; return money(n); }
   var toastTimer = null;
   function toast(msg) { var el = $('toast'); el.textContent = msg; el.classList.add('on'); clearTimeout(toastTimer); toastTimer = setTimeout(function () { el.classList.remove('on'); }, 2200); }
-  function withTimeout(p, ms) { return Promise.race([p, new Promise(function (_, rej) { setTimeout(function () { rej(new Error('timeout')); }, ms); })]); }
+  function withTimeout(p, ms) { return Promise.race([p, new Promise(function (_, rej) { setTimeout(function () { rej(new Error('请求超时 (网络连接 GitHub 较慢或不通)')); }, ms); })]); }
   function b64Encode(str) { var bytes = new TextEncoder().encode(str), bin = '', chunk = 0x8000; for (var i = 0; i < bytes.length; i += chunk) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk)); return btoa(bin); }
   function b64Decode(b64) { var bin = atob(String(b64).replace(/\s/g, '')); var bytes = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i); return new TextDecoder().decode(bytes); }
   function safeLS(fn, fallback) { try { return fn(); } catch (e) { return fallback; } }
@@ -675,7 +675,7 @@ textarea.inp{min-height:80px;resize:vertical;line-height:1.5}
 
   function ghHeaders(){return {'Authorization':'Bearer '+GH.token,'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'};}
   function ghUrl(){return 'https://api.github.com/repos/'+encodeURIComponent(GH.owner)+'/'+encodeURIComponent(GH.repo)+'/contents/'+encodeURIComponent(GH.path).replace(/%2F/g,'/');}
-  function ghGetRaw(){return fetch(ghUrl()+'?ref='+encodeURIComponent(GH.branch)+'&t='+Date.now(),{headers:ghHeaders(),cache:'no-store'}).then(function(r){if(r.status===404)return null;if(!r.ok)return r.json().then(function(e){throw new Error('读取失败('+r.status+')：'+(e.message||'权限不足'));});return r.json();});}
+  function ghGetRaw(){return fetch(ghUrl()+'?ref='+encodeURIComponent(GH.branch)+'&t='+Date.now(),{headers:ghHeaders(),cache:'no-store'}).then(function(r){if(r.status===404)return null;if(!r.ok)return r.json().then(function(e){throw new Error('读取失败('+r.status+')：'+(e.message||'权限不足或Token失效'));});return r.json();});}
   
   async function ghGet() {
     if (!GH.ready()) return null;
@@ -683,7 +683,7 @@ textarea.inp{min-height:80px;resize:vertical;line-height:1.5}
     if (!j || !j.content) return null;
     var rawStr = b64Decode(j.content);
     var parsed;
-    try { parsed = JSON.parse(rawStr); } catch(e) { throw new Error('云端数据格式损坏'); }
+    try { parsed = JSON.parse(rawStr); } catch(e) { throw new Error('云端数据格式损坏，非标准JSON'); }
 
     if (parsed.v === 2 || parsed.v === 1 || parsed.alg === 'AES-GCM-256') {
       var pwd = ENC.getPwd();
@@ -878,11 +878,12 @@ textarea.inp{min-height:80px;resize:vertical;line-height:1.5}
   }
 
   function showLogin(){$('loginView').hidden=false;$('appView').hidden=true;$('fabAdd').hidden=true;authed=false;}
-  function renderLoginHint(result) {
+  function renderLoginHint(result, errMsg) {
     var hint = $('loginHint'), auth = db.auth || DEFAULT_DB.auth, html = '';
     if (auth.customized) html = '请输入你的账号和密码';
     else html = '首次使用默认账号 <b>admin</b> / 密码 <b>123456</b><br>修改密码后请使用新密码';
     if (result === 'fail') html += '<br><span style="color:#c92a2a">云端读取失败，使用本地缓存</span>';
+    if (errMsg) html += '<br><span style="color:#c92a2a;font-size:11px;word-break:break-all;display:block;margin-top:4px;padding:4px;background:rgba(255,0,0,.05);border-radius:4px;">' + esc(errMsg) + '</span>';
     if (result === 'need_pwd') html += '<br><span style="color:#c92a2a">云端数据已加密，登录后请输入加密密码</span>';
     hint.innerHTML = html;
   }
@@ -2121,7 +2122,6 @@ textarea.inp{min-height:80px;resize:vertical;line-height:1.5}
     let type = 'expense';
     let note = '';
 
-    // 1. 提取日期
     let dateRegex = /(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/;
     let dMatch = text.match(dateRegex);
     if (dMatch) {
@@ -2136,7 +2136,6 @@ textarea.inp{min-height:80px;resize:vertical;line-height:1.5}
         }
     }
 
-    // 2. 提取金额（获取最显著的数字）
     let nums = [...text.matchAll(/([+-]?\d+(?:\.\d{1,2})?)/g)];
     if (nums.length > 0) {
         let best = nums.reduce((prev, curr) => {
@@ -2148,7 +2147,6 @@ textarea.inp{min-height:80px;resize:vertical;line-height:1.5}
         text = text.replace(best[1], ' ');
     }
 
-    // 3. 清理备注
     note = text.replace(/[¥$,，、]/g, ' ').replace(/\s+/g, ' ').trim();
     return { date, amount, type, note };
   }
@@ -2945,7 +2943,7 @@ textarea.inp{min-height:80px;resize:vertical;line-height:1.5}
     $('loginHint').innerHTML = '正在读取云端配置…';
     
     if (GH.ready()) {
-      withTimeout(ghGet(), 5000).then(function(remote){
+      withTimeout(ghGet(), 10000).then(function(remote){
         if (remote && Array.isArray(remote.txns)) { 
           db = remote; ensureDbShape(); saveLocal(); 
           renderLoginHint('cloud'); 
@@ -2957,7 +2955,7 @@ textarea.inp{min-height:80px;resize:vertical;line-height:1.5}
           window.needMasterPwd = true;
           renderLoginHint('need_pwd');
         } else {
-          renderLoginHint('fail');
+          renderLoginHint('fail', e.message || '未知错误');
         }
       }).finally(function(){
         setSyncState('ok');
