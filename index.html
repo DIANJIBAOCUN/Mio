@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>像素账本 v8.6 · PIXEL LEDGER</title>
+<title>像素账本 v8.7 · PIXEL LEDGER</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%23eef4ff'/><rect x='3' y='5' width='10' height='7' fill='%23ffc107'/><rect x='3' y='3' width='10' height='2' fill='%2316161f'/></svg>">
 <meta name="theme-color" content="#eef1f9">
 <link rel="preconnect" href="https://miaoda.feishu.cn">
@@ -361,13 +361,14 @@ textarea.inp{min-height:80px;resize:vertical;line-height:1.5}
   <div class="login-card">
     <div class="login-logo">
       <div class="mark"><svg viewBox="0 0 12 12" width="34" height="34" shape-rendering="crispEdges"><rect x="2" y="3" width="8" height="1" fill="#16161f"/><rect x="1" y="4" width="10" height="6" fill="#ffc107"/><rect x="2" y="5" width="8" height="4" fill="#fff6d6"/><rect x="3" y="6" width="2" height="2" fill="#12b886"/><rect x="6" y="6" width="3" height="1" fill="#16161f"/></svg></div>
-      <div><div class="t1">像素账本</div><div class="t2">PIXEL LEDGER / v8.6</div></div>
+      <div><div class="t1">像素账本</div><div class="t2">PIXEL LEDGER / v8.7</div></div>
     </div>
     <div class="err-box" id="loginErr" hidden></div>
     <div class="field"><label>账本账号</label><input class="inp" id="lgUser" autocomplete="username" placeholder="请输入账号"></div>
     <div class="field"><label>账本密码</label><input class="inp" id="lgPass" type="password" autocomplete="current-password" placeholder="请输入密码"></div>
     <button class="btn block" id="lgSubmit">登 录</button>
     <div class="login-hint" id="loginHint">正在读取云端配置…</div>
+    <button class="btn ghost block sm" id="btnResetCloud" hidden style="margin-top:10px; color:#c92a2a; border-color:#f3b7b2">重置云端同步配置</button>
   </div>
 </div>
 
@@ -568,8 +569,15 @@ textarea.inp{min-height:80px;resize:vertical;line-height:1.5}
     var key = await deriveEncryptionKey(password, salt);
     var iv = hexToBytes(ivHex);
     var data = new Uint8Array(b64Decode(dataB64).split('').map(function(c){return c.charCodeAt(0);}));
-    var plainBuf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv }, key, data);
-    return new TextDecoder().decode(plainBuf);
+    try {
+      var plainBuf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv }, key, data);
+      return new TextDecoder().decode(plainBuf);
+    } catch (e) {
+      if (e.name === 'OperationError' || e.name === 'DOMException') {
+        throw new Error('解密失败：本地保存的密码错误或云端数据已损坏');
+      }
+      throw e;
+    }
   }
 
   var COLORS = ['#ff5c52','#ff9f45','#ffc107','#12b886','#20c997','#2f7cf6','#4dabf7','#9b5cff','#e64980','#845ef7','#94d82d','#f783ac','#0ca678','#f76707'];
@@ -675,7 +683,25 @@ textarea.inp{min-height:80px;resize:vertical;line-height:1.5}
 
   function ghHeaders(){return {'Authorization':'Bearer '+GH.token,'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'};}
   function ghUrl(){return 'https://api.github.com/repos/'+encodeURIComponent(GH.owner)+'/'+encodeURIComponent(GH.repo)+'/contents/'+encodeURIComponent(GH.path).replace(/%2F/g,'/');}
-  function ghGetRaw(){return fetch(ghUrl()+'?ref='+encodeURIComponent(GH.branch)+'&t='+Date.now(),{headers:ghHeaders(),cache:'no-store'}).then(function(r){if(r.status===404)return null;if(!r.ok)return r.json().then(function(e){throw new Error('读取失败('+r.status+')：'+(e.message||'权限不足或Token失效'));});return r.json();});}
+  
+  async function ghGetRaw() {
+    try {
+      var r = await fetch(ghUrl()+'?ref='+encodeURIComponent(GH.branch)+'&t='+Date.now(),{headers:ghHeaders(),cache:'no-store'});
+      if(r.status===404) return null;
+      if(!r.ok){
+        var txt = await r.text();
+        var msg = '读取失败('+r.status+')';
+        try { var errJson = JSON.parse(txt); if(errJson.message) msg += '：' + errJson.message; } catch(e) {}
+        throw new Error(msg);
+      }
+      return await r.json();
+    } catch (e) {
+      if (e.name === 'TypeError' || e.message.indexOf('Failed to fetch') !== -1) {
+        throw new Error('网络错误：无法连接 GitHub API，请检查网络或代理设置');
+      }
+      throw e;
+    }
+  }
   
   async function ghGet() {
     if (!GH.ready()) return null;
@@ -882,11 +908,31 @@ textarea.inp{min-height:80px;resize:vertical;line-height:1.5}
     var hint = $('loginHint'), auth = db.auth || DEFAULT_DB.auth, html = '';
     if (auth.customized) html = '请输入你的账号和密码';
     else html = '首次使用默认账号 <b>admin</b> / 密码 <b>123456</b><br>修改密码后请使用新密码';
-    if (result === 'fail') html += '<br><span style="color:#c92a2a">云端读取失败，使用本地缓存</span>';
+    if (result === 'fail') {
+      html += '<br><span style="color:#c92a2a">云端读取失败，使用本地缓存</span>';
+      $('btnResetCloud').hidden = false;
+    } else {
+      $('btnResetCloud').hidden = true;
+    }
     if (errMsg) html += '<br><span style="color:#c92a2a;font-size:11px;word-break:break-all;display:block;margin-top:4px;padding:4px;background:rgba(255,0,0,.05);border-radius:4px;">' + esc(errMsg) + '</span>';
     if (result === 'need_pwd') html += '<br><span style="color:#c92a2a">云端数据已加密，登录后请输入加密密码</span>';
     hint.innerHTML = html;
   }
+
+  $('btnResetCloud').addEventListener('click', function() {
+    if (confirm('重置将清除本地保存的 GitHub Token、仓库信息和加密密码。确定继续吗？')) {
+      try {
+        localStorage.removeItem('px_gh_token');
+        localStorage.removeItem('px_gh_owner');
+        localStorage.removeItem('px_gh_repo');
+        localStorage.removeItem('px_gh_branch');
+        localStorage.removeItem('px_gh_path');
+        localStorage.removeItem('px_enc_pwd');
+        localStorage.removeItem('px_enc_enabled');
+        location.reload();
+      } catch(e) {}
+    }
+  });
 
   async function doLogin(){
     var btn = $('lgSubmit'); if (btn.disabled) return;
@@ -2951,11 +2997,23 @@ textarea.inp{min-height:80px;resize:vertical;line-height:1.5}
           renderLoginHint('empty');
         }
       }).catch(function(e){
-        if (e.message.indexOf('需要加密密码') !== -1) {
+        console.error('[Boot Cloud Sync Error]', e);
+        var errMsg = '';
+        if (typeof e === 'string') {
+            errMsg = e;
+        } else if (e && e.message) {
+            errMsg = e.name && e.name !== 'Error' ? (e.name + ': ' + e.message) : e.message;
+        } else if (e && e.name) {
+            errMsg = e.name;
+        } else {
+            errMsg = '请检查网络或 GitHub 配置 (Token/仓库名/分支/路径)';
+        }
+        
+        if (errMsg.indexOf('需要加密密码') !== -1) {
           window.needMasterPwd = true;
           renderLoginHint('need_pwd');
         } else {
-          renderLoginHint('fail', e.message || '未知错误');
+          renderLoginHint('fail', errMsg);
         }
       }).finally(function(){
         setSyncState('ok');
