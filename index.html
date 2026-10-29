@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>像素账本 v8.7 · PIXEL LEDGER</title>
+<title>像素账本 v8.8 · PIXEL LEDGER</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%23eef4ff'/><rect x='3' y='5' width='10' height='7' fill='%23ffc107'/><rect x='3' y='3' width='10' height='2' fill='%2316161f'/></svg>">
 <meta name="theme-color" content="#eef1f9">
 <link rel="preconnect" href="https://miaoda.feishu.cn">
@@ -361,7 +361,7 @@ textarea.inp{min-height:80px;resize:vertical;line-height:1.5}
   <div class="login-card">
     <div class="login-logo">
       <div class="mark"><svg viewBox="0 0 12 12" width="34" height="34" shape-rendering="crispEdges"><rect x="2" y="3" width="8" height="1" fill="#16161f"/><rect x="1" y="4" width="10" height="6" fill="#ffc107"/><rect x="2" y="5" width="8" height="4" fill="#fff6d6"/><rect x="3" y="6" width="2" height="2" fill="#12b886"/><rect x="6" y="6" width="3" height="1" fill="#16161f"/></svg></div>
-      <div><div class="t1">像素账本</div><div class="t2">PIXEL LEDGER / v8.7</div></div>
+      <div><div class="t1">像素账本</div><div class="t2">PIXEL LEDGER / v8.8</div></div>
     </div>
     <div class="err-box" id="loginErr" hidden></div>
     <div class="field"><label>账本账号</label><input class="inp" id="lgUser" autocomplete="username" placeholder="请输入账号"></div>
@@ -920,15 +920,14 @@ textarea.inp{min-height:80px;resize:vertical;line-height:1.5}
   }
 
   $('btnResetCloud').addEventListener('click', function() {
-    if (confirm('重置将清除本地保存的 GitHub Token、仓库信息和加密密码。确定继续吗？')) {
+    if (confirm('重置将清除本地保存的 GitHub Token、仓库和分支信息。\n\n【注意】本地设置的加密密码将会保留。\n\n确定继续吗？')) {
       try {
         localStorage.removeItem('px_gh_token');
         localStorage.removeItem('px_gh_owner');
         localStorage.removeItem('px_gh_repo');
         localStorage.removeItem('px_gh_branch');
         localStorage.removeItem('px_gh_path');
-        localStorage.removeItem('px_enc_pwd');
-        localStorage.removeItem('px_enc_enabled');
+        // 不再清除 px_enc_pwd 和 px_enc_enabled，让用户可以保留加密配置
         location.reload();
       } catch(e) {}
     }
